@@ -8,6 +8,7 @@ import numpy
 import warnings
 import itertools
 from .rxdException import RxDException
+import ctypes
 from . import initializer
 import collections
 
