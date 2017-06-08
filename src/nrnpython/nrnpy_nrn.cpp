@@ -80,6 +80,10 @@ extern PyObject* nrnpy_hoc2pyobject(Object*);
 extern PyObject* nrnpy_ho2po(Object*);
 static void nrnpy_reg_mech(int);
 extern void (*nrnpy_reg_mech_p_)(int);
+static int ob_is_seg(Object*);
+extern int (*nrnpy_ob_is_seg)(Object*);
+static Object* seg_from_sec_x(Section*, double x);
+extern Object* (*nrnpy_seg_from_sec_x)(Section*, double x);
 static void o2loc(Object*, Section**, double*);
 extern void (*nrnpy_o2loc_p_)(Object*, Section**, double*);
 static void nrnpy_unreg_mech(int);
@@ -98,12 +102,12 @@ static char* pysec_name(Section* sec) {
     NPySecObj* ps = (NPySecObj*)sec->prop->dparam[PROP_PY_INDEX]._pvoid;
     buf[0] = '\0';
     if (ps->cell_) {
-      PyGILState_STATE gilsav = PyGILState_Ensure();
+      PyLockGIL lock;
+
       PyObject* cell = PyObject_Str(ps->cell_);
       Py2NRNString str(cell);
       Py_DECREF(cell);
       char* cp = str.c_str();
-      PyGILState_Release(gilsav);
       sprintf(buf, "%s.", cp);
     }
     char* cp = buf + strlen(buf);
@@ -334,6 +338,17 @@ static int NPySegObj_init(NPySegObj* self, PyObject* args, PyObject* kwds) {
   self->pysec_ = pysec;
   self->x_ = x;
   return 0;
+}
+
+static int ob_is_seg(Object* o) {
+  if (!o || o->ctemplate->sym != nrnpy_pyobj_sym_) {
+    return 0;
+  }
+  PyObject* po = nrnpy_hoc2pyobject(o);
+  if (!PyObject_TypeCheck(po, psegment_type)) {
+    return 0;
+  }
+  return 1;
 }
 
 static void o2loc(Object* o, Section** psec, double* px) {
@@ -903,33 +918,42 @@ static PyObject* segment_iter(NPySegObj* self) {
   return (PyObject*)m;
 }
 
+static Object* seg_from_sec_x(Section* sec, double x) {
+  PyObject* pyseg = (PyObject*)PyObject_New(NPySegObj, psegment_type);
+  NPySegObj* pseg = (NPySegObj*)pyseg;
+  NPySecObj* pysec = (NPySecObj*)sec->prop->dparam[PROP_PY_INDEX]._pvoid;
+  if (pysec) {
+    pseg->pysec_ = pysec;
+    Py_INCREF(pysec);
+  } else {
+    pysec = (NPySecObj*)psection_type->tp_alloc(psection_type, 0);
+    pysec->sec_ = sec;
+    pysec->name_ = 0;
+    pysec->cell_ = 0;
+    Py_INCREF(pysec);
+    pseg->pysec_ = pysec;
+  }
+  pseg->x_ = x;
+  Object* ho = nrnpy_pyobject_in_obj(pyseg);
+  Py_DECREF(pyseg);
+  return ho;
+}
+
 static Object** pp_get_segment(void* vptr) {
   Point_process* pnt = (Point_process*)vptr;
   // printf("pp_get_segment %s\n", hoc_object_name(pnt->ob));
-  PyObject* pyseg = Py_None;
+  Object* ho = NULL;
   if (pnt->prop) {
     Section* sec = pnt->sec;
     double x = nrn_arc_position(sec, pnt->node);
-    pyseg = (PyObject*)PyObject_New(NPySegObj, psegment_type);
-    NPySegObj* pseg = (NPySegObj*)pyseg;
-    NPySecObj* pysec = (NPySecObj*)sec->prop->dparam[PROP_PY_INDEX]._pvoid;
-    if (pysec) {
-      pseg->pysec_ = pysec;
-      Py_INCREF(pysec);
-    } else {
-      pysec = (NPySecObj*)psection_type->tp_alloc(psection_type, 0);
-      pysec->sec_ = sec;
-      pysec->name_ = 0;
-      pysec->cell_ = 0;
-      Py_INCREF(pysec);
-      pseg->pysec_ = pysec;
-    }
-    pseg->x_ = nrn_arc_position(sec, pnt->node);
+    ho = seg_from_sec_x(sec, x);
   }
-  Object* ho = nrnpy_pyobject_in_obj(pyseg);
-  Py_DECREF(pyseg);
+  if (!ho) {
+    ho = nrnpy_pyobject_in_obj(Py_None);
+  }
+  Object** tobj = hoc_temp_objptr(ho);
   --ho->refcount;
-  return hoc_temp_objptr(ho);
+  return tobj;
 }
 
 static void rv_noexist(Section* sec, const char* n, double x, int err) {
@@ -1557,9 +1581,6 @@ static PyMethodDef NPyRangeVar_methods[] = {
 
 static PyMemberDef NPyMechObj_members[] = {{NULL}};
 
-static PySequenceMethods rv_seqmeth = {
-    rv_len, NULL, NULL, rv_getitem, NULL, rv_setitem, NULL, NULL, NULL, NULL};
-
 PyObject* nrnpy_cas(PyObject* self, PyObject* args) {
   Section* sec = chk_access();
   // printf("nrnpy_cas %s\n", secname(sec));
@@ -1600,25 +1621,41 @@ myPyMODINIT_FUNC nrnpy_nrn(void) {
     return m;
   }
 #endif
+#if PY_MAJOR_VERSION >= 3
+  psection_type = (PyTypeObject*)PyType_FromSpec(&nrnpy_SectionType_spec);
+#else
   psection_type = &nrnpy_SectionType;
-  nrnpy_SectionType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&nrnpy_SectionType) < 0) goto fail;
-  Py_INCREF(&nrnpy_SectionType);
+#endif
+  psection_type->tp_new = PyType_GenericNew;
+  if (PyType_Ready(psection_type) < 0) goto fail;
+  Py_INCREF(psection_type);
 
+#if PY_MAJOR_VERSION >= 3
+  pallsegiter_type = (PyTypeObject*)PyType_FromSpec(&nrnpy_AllsegIterType_spec);
+#else
   pallsegiter_type = &nrnpy_AllsegIterType;
-  nrnpy_AllsegIterType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&nrnpy_AllsegIterType) < 0) goto fail;
-  Py_INCREF(&nrnpy_AllsegIterType);
+#endif
+  pallsegiter_type->tp_new = PyType_GenericNew;
+  if (PyType_Ready(pallsegiter_type) < 0) goto fail;
+  Py_INCREF(pallsegiter_type);
 
+#if PY_MAJOR_VERSION >= 3
+  psegment_type = (PyTypeObject*)PyType_FromSpec(&nrnpy_SegmentType_spec);
+#else
   psegment_type = &nrnpy_SegmentType;
-  nrnpy_SegmentType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&nrnpy_SegmentType) < 0) goto fail;
-  Py_INCREF(&nrnpy_SegmentType);
+#endif
+  psegment_type->tp_new = PyType_GenericNew;
+  if (PyType_Ready(psegment_type) < 0) goto fail;
+  Py_INCREF(psegment_type);
 
+#if PY_MAJOR_VERSION >= 3
+  range_type = (PyTypeObject*)PyType_FromSpec(&nrnpy_RangeType_spec);
+#else
   range_type = &nrnpy_RangeType;
-  nrnpy_RangeType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&nrnpy_RangeType) < 0) goto fail;
-  Py_INCREF(&nrnpy_RangeType);
+#endif
+  range_type->tp_new = PyType_GenericNew;
+  if (PyType_Ready(range_type) < 0) goto fail;
+  Py_INCREF(range_type);
 
 #if PY_MAJOR_VERSION >= 3
   m = PyModule_Create(
@@ -1642,19 +1679,24 @@ myPyMODINIT_FUNC nrnpy_nrn(void) {
   PyModule_AddObject(m, "Section", (PyObject*)psection_type);
   PyModule_AddObject(m, "Segment", (PyObject*)psegment_type);
 
-#if 1
+#if PY_MAJOR_VERSION >= 3
+  pmech_generic_type = (PyTypeObject*)PyType_FromSpec(&nrnpy_MechanismType_spec);
+#else
   pmech_generic_type = &nrnpy_MechanismType;
-  nrnpy_MechanismType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&nrnpy_MechanismType) < 0) goto fail;
-  Py_INCREF(&nrnpy_MechanismType);
+#endif
+  pmech_generic_type->tp_new = PyType_GenericNew;
+  if (PyType_Ready(pmech_generic_type) < 0) goto fail;
+  Py_INCREF(pmech_generic_type);
   PyModule_AddObject(m, "Mechanism", (PyObject*)pmech_generic_type);
   remake_pmech_types();
   nrnpy_reg_mech_p_ = nrnpy_reg_mech;
+  nrnpy_ob_is_seg = ob_is_seg;
+  nrnpy_seg_from_sec_x = seg_from_sec_x;
   nrnpy_o2loc_p_ = o2loc;
   nrnpy_pysec_name_p_ = pysec_name;
   nrnpy_pysec_cell_p_ = pysec_cell;
   nrnpy_pysec_cell_equals_p_ = pysec_cell_equals;
-#endif
+
 #if PY_MAJOR_VERSION >= 3
   err = PyDict_SetItemString(modules, "nrn", m);
   assert(err == 0);
@@ -1711,7 +1753,7 @@ void nrnpy_reg_mech(int type) {
   if (PyDict_GetItemString(pmech_types, s)) {
     hoc_execerror(s, "mechanism already exists");
   }
-  Py_INCREF(&nrnpy_MechanismType);
+  Py_INCREF(pmech_generic_type);
   PyModule_AddObject(nrnmodule_, s, (PyObject*)pmech_generic_type);
   PyDict_SetItemString(pmech_types, s, Py_BuildValue("i", type));
   for (i = 0; i < mf->sym->s_varn; ++i) {

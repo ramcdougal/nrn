@@ -1,4 +1,5 @@
 #include <nrnpython.h>
+#include <nrnpy_utils.h>
 #include <stdio.h>
 #include <InterViews/resource.h>
 #if HAVE_IV
@@ -60,6 +61,19 @@ void nrnpy_augment_path() {
 
 int nrnpy_pyrun(const char* fname) {
 #ifdef MINGW
+#if PY_MAJOR_VERSION >= 3
+  // perhaps this should be the generic implementation
+  char* cmd = new char[strlen(fname) + 30];
+  sprintf(cmd, "exec(open(%s).read, globals())", fname);
+  int err = PyRun_SimpleString(cmd);
+  delete [] cmd;
+  if (PyRun_SimpleString(cmd) != 0) {
+    PyErr_Print();
+    PyErr_Clear();
+    return 0;
+  }
+  return 1;
+#else // PY_MAJOR_VERSION < 3
   /*
   http://www.megasolutions.net/python/How-to-receive-a-FILE--from-Python-under-MinGW_-38375.aspx
   Because microsoft C runtimes are not binary compatible, we can't just
@@ -74,15 +88,20 @@ int nrnpy_pyrun(const char* fname) {
     PyErr_Clear();
     return 0;
   } else {
+    char* cmd = NULL;
     if (PyRun_AnyFile(PyFile_AsFile(pfo), fname) == -1) {
       PyErr_Print();
       PyErr_Clear();
+      Py_DECREF(pfo);
+      if (cmd) { delete [] cmd; }
       return 0;
     }
     Py_DECREF(pfo);
+    if (cmd) { delete [] cmd; }
     return 1;
   }
-#else
+#endif // PY_MAJOR_VERSION < 3
+#else // MINGW not defined
   FILE* fp = fopen(fname, "r");
   if (fp) {
     PyRun_AnyFile(fp, fname);
@@ -92,7 +111,7 @@ int nrnpy_pyrun(const char* fname) {
     fprintf(stderr, "Could not open %s\n", fname);
     return 0;
   }
-#endif
+#endif // MINGW not defined
 }
 
 #if PY_MAJOR_VERSION >= 3
@@ -212,9 +231,11 @@ void nrnpython_start(int b) {
 void nrnpython_real() {
   int retval = 0;
 #if USE_PYTHON
-  HocTopContextSet PyGILState_STATE gilsav = PyGILState_Ensure();
-  retval = PyRun_SimpleString(gargstr(1)) == 0;
-  PyGILState_Release(gilsav);
+  HocTopContextSet
+  {
+    PyLockGIL lock;
+    retval = PyRun_SimpleString(gargstr(1)) == 0;
+  }
   HocContextRestore
 #endif
   hoc_retpushx(double(retval));
