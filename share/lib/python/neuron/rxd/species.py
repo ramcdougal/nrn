@@ -358,7 +358,14 @@ class _ExtracellularSpecies(rxdmath._Arithmeticed):
         self._xhi, self._yhi, self._zhi = region._xhi, region._yhi, region._zhi
         self._states = h.Vector(self._nx * self._ny * self._nz)
         self.states = self._states.as_numpy().reshape(self._nx, self._ny, self._nz)
-        self._initial = initial
+        if initial is None:
+            try:
+                self._initial = h.__getattribute__(name + "o0_" + name + "_ion")
+            except:
+                self._initial = 0
+        else:
+            self._initial = initial
+
 
         if(numpy.isscalar(region.alpha)):
             self.alpha = self._alpha = region.alpha
