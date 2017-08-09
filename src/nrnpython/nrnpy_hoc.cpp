@@ -24,6 +24,8 @@ extern "C" {
 extern Section* nrn_noerr_access();
 extern void hoc_pushs(Symbol*);
 extern double* hoc_evalpointer();
+extern double cable_prop_eval(Symbol* sym);
+extern void nrn_change_nseg(Section*, int);
 extern Symlist* hoc_top_level_symlist;
 extern Symlist* hoc_built_in_symlist;
 extern Inst* hoc_pc;
@@ -813,6 +815,10 @@ static PyObject* hocobj_getattr(PyObject* subself, PyObject* pyname) {
   int isptr = 0;
   Py2NRNString name(pyname);
   char* n = name.c_str();
+  if (!n) {
+    PyErr_SetString(PyExc_TypeError, "attribute name must be a string");
+    return NULL;
+  }
   // printf("hocobj_getattr %s\n", n);
 
   Symbol* sym = getsym(n, self->ho_, 0);
@@ -990,6 +996,17 @@ static PyObject* hocobj_getattr(PyObject* subself, PyObject* pyname) {
             PyErr_SetString(PyExc_TypeError, "Section access unspecified");
             break;
           }
+          if (!isptr) {
+            if (sym->u.rng.type == CABLESECTION) {
+              result = Py_BuildValue("d", cable_prop_eval(sym));
+            }else{
+              result = Py_BuildValue("i", int(cable_prop_eval(sym)));
+            }
+            break;
+          }else if (sym->u.rng.type != CABLESECTION) {
+            PyErr_SetString(PyExc_TypeError, "Cannot be a reference");
+            break;
+          }
         }
         hoc_pushs(sym);
         hoc_evalpointer();
@@ -1125,6 +1142,10 @@ static int hocobj_setattro(PyObject* subself, PyObject* pyname,
   }
   Py2NRNString name(pyname);
   char* n = name.c_str();
+  if (!n) {
+    PyErr_SetString(PyExc_TypeError, "attribute name must be a string");
+    return -1;
+  }
   // printf("hocobj_setattro %s\n", n);
   Symbol* sym = getsym(n, self->ho_, 0);
   if (!sym) {
@@ -1180,12 +1201,33 @@ static int hocobj_setattro(PyObject* subself, PyObject* pyname,
         PyErr_SetString(PyExc_TypeError, "wrong number of subscripts");
         err = -1;
       } else {
-        hoc_pushs(sym);
         if (sym->subtype == USERINT) {
-          err = PyArg_Parse(value, "i", sym->u.pvalint) != 1;
+          err = PyArg_Parse(value, "i", sym->u.pvalint) == 0;
+        } else if (sym->subtype == USERPROPERTY) {
+          if (!nrn_noerr_access()) {
+            PyErr_SetString(PyExc_TypeError, "Section access unspecified");
+            err = -1;
+            break;
+          }
+          double x;
+          if (sym->u.rng.type != CABLESECTION) {
+            int i;
+            if (PyArg_Parse(value, "i", &i) != 0 && i > 0 && i <= 32767) {
+              x = double(i);
+            }else{
+              PyErr_SetString(PyExc_ValueError, "nseg must be an integer in range 1 to 32767");
+              err = -1;
+            }
+          } else {
+            err = PyArg_Parse(value, "d", &x) == 0;
+          }
+          if (!err) {
+            cable_prop_assign(sym, &x, 0);
+          }
         } else {
+          hoc_pushs(sym);
           hoc_evalpointer();
-          err = PyArg_Parse(value, "d", hoc_pxpop()) != 1;
+          err = PyArg_Parse(value, "d", hoc_pxpop()) == 0;
         }
       }
       break;
@@ -1662,6 +1704,9 @@ static PyObject* setpointer(PyObject* self, PyObject* args) {
       }
       Py2NRNString str(name);
       char* n = str.c_str();
+      if (!n) {
+        goto done;
+      }
       Symbol* sym = getsym(n, hpp->ho_, 0);
       if (!sym || sym->type != RANGEVAR || sym->subtype != NRNPOINTER) {
         goto done;
