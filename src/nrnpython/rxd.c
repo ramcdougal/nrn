@@ -27,22 +27,22 @@ int NUM_THREADS = 1;
  *n - the old number of threads - use to free the old threaded_reactions_tasks*/
 void refresh_reactions(int n)
 {
-	int k;
-	if(threaded_reactions_tasks != NULL)
-	{
-		for(k = 0; k<n; k++)
-		{
-			SAFE_FREE(threaded_reactions_tasks[k].onset);
-			SAFE_FREE(threaded_reactions_tasks[k].offset);
-		}
-	}
-	threaded_reactions_tasks = create_threaded_reactions();
+    int k;
+    if(threaded_reactions_tasks != NULL)
+    {
+        for(k = 0; k<n; k++)
+        {
+            SAFE_FREE(threaded_reactions_tasks[k].onset);
+            SAFE_FREE(threaded_reactions_tasks[k].offset);
+        }
+    }
+    threaded_reactions_tasks = create_threaded_reactions();
 }
 
 void set_num_threads(int n) {
     int old_num = NUM_THREADS;
-	NUM_THREADS = n;
-	refresh_reactions(old_num);
+    NUM_THREADS = n;
+    refresh_reactions(old_num);
 }
 
 int get_num_threads(void) {
@@ -53,21 +53,21 @@ int get_num_threads(void) {
 /*Removal all reactions*/
 void clear_rates(void)
 {
-	Grid_node *grid;
-	Reaction *r, *tmp;
-	for (grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
-	{
-		for(r = grid->reactions; r != NULL;)
-		{
-			free(r->species_states);
-			if(r->subregion)
-				free(r->subregion);
-			tmp = r;
-			r = r->next;
-			free(tmp);
-		}
-	}
-	refresh_reactions(NUM_THREADS);
+    Grid_node *grid;
+    Reaction *r, *tmp;
+    for (grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
+    {
+        for(r = grid->reactions; r != NULL;)
+        {
+            free(r->species_states);
+            if(r->subregion)
+                free(r->subregion);
+            tmp = r;
+            r = r->next;
+            free(tmp);
+        }
+    }
+    refresh_reactions(NUM_THREADS);
 
 }
 
@@ -76,77 +76,77 @@ void clear_rates(void)
  * grid_id - the grid id within the linked list
  * ReactionRate - the reaction function
  * subregion - either NULL or a boolean array the same size as the grid
- * 	indicating if reaction occurs at a specific voxel
+ *     indicating if reaction occurs at a specific voxel
  */
 Reaction* create_reaction(int list_idx, int grid_id, ReactionRate f, unsigned char* subregion)
 {
-	Grid_node *grid;
-	int i, j;
+    Grid_node *grid;
+    int i, j;
 
-	Reaction* r = (Reaction*)malloc(sizeof(Reaction));
-	assert(r);
-	r->reaction = f;
-	for(grid = Parallel_grids[list_idx], i = 0; grid != NULL; grid = grid -> next, i++)
-	{
-		if(i==grid_id)
-		{
-			/*Place the reaction at the top of the stack `reactions` in Grid_node*/
-			r->next = grid->reactions;
-			grid->reactions = r;
+    Reaction* r = (Reaction*)malloc(sizeof(Reaction));
+    assert(r);
+    r->reaction = f;
+    for(grid = Parallel_grids[list_idx], i = 0; grid != NULL; grid = grid -> next, i++)
+    {
+        if(i==grid_id)
+        {
+            /*Place the reaction at the top of the stack `reactions` in Grid_node*/
+            r->next = grid->reactions;
+            grid->reactions = r;
 
-			if(subregion == NULL)
-			{
-				r->subregion = NULL;
-				r->subregion_size = 0;
-			}
-			else
-			{
-				for(r->subregion_size=0, j=0; j < grid->size_x * grid->size_y * grid->size_z; j++)
-					r->subregion_size += subregion[j];
-				r->subregion = subregion;
-			}	
+            if(subregion == NULL)
+            {
+                r->subregion = NULL;
+                r->subregion_size = 0;
+            }
+            else
+            {
+                for(r->subregion_size=0, j=0; j < grid->size_x * grid->size_y * grid->size_z; j++)
+                    r->subregion_size += subregion[j];
+                r->subregion = subregion;
+            }    
 
-		}	
-	}
+        }    
+    }
 
-	r->num_species_involved=i;
-	r->species_states = (double**)malloc(sizeof(Grid_node*)*(r->num_species_involved));
-	assert(r->species_states);
+    r->num_species_involved=i;
+    r->species_states = (double**)malloc(sizeof(Grid_node*)*(r->num_species_involved));
+    assert(r->species_states);
 
-	for(grid = Parallel_grids[list_idx], i = 0; grid != NULL; grid = grid -> next, i++)
-	{
-		/*Assumes grids are the same size (no interpolation) 
-		 *Assumes all the species will be in the same Parallel_grids list*/
-		r->species_states[i] = grid->old_states;
-	}
-	
-	return r;
+    for(grid = Parallel_grids[list_idx], i = 0; grid != NULL; grid = grid -> next, i++)
+    {
+        /*Assumes grids are the same size (no interpolation) 
+         *Assumes all the species will be in the same Parallel_grids list*/
+        r->species_states[i] = grid->old_states;
+    }
+    
+    return r;
 }
 
 /*register_reaction is called from python it creates a reaction with
  * list_idx - the index for the linked list in the global array Parallel_grids
- * 	(currently this is always 0)
+ *     (currently this is always 0)
  * grid_id - the grid id within the linked list - this corresponds to species
  * ReactionRate - the reaction function
  */
 void register_reaction(int list_idx, int grid_id, ReactionRate f)
 {
-	create_reaction(list_idx, grid_id, f, NULL);
-	refresh_reactions(NUM_THREADS);
+    create_reaction(list_idx, grid_id, f, NULL);
+    refresh_reactions(NUM_THREADS);
 }
 
 
 /*register_subregion_reaction is called from python it creates a reaction with
  * list_idx - the index for the linked list in the global array Parallel_grids
- * 	(currently this is always 0)
+ *     (currently this is always 0)
  * grid_id - the grid id within the linked list - this corresponds to species
  * my_subregion - a boolean array indicating the voxels where a reaction occurs
  * ReactionRate - the reaction function
  */
 void register_subregion_reaction(int list_idx, int grid_id, unsigned char* my_subregion, ReactionRate f)
 {
-	create_reaction(list_idx, grid_id, f, my_subregion);
-	refresh_reactions(NUM_THREADS);
+    create_reaction(list_idx, grid_id, f, my_subregion);
+    refresh_reactions(NUM_THREADS);
 }
 
 static int states_cvode_offset;
@@ -156,61 +156,61 @@ fptr _setup, _initialize;
 /*create_threaded_reactions is used to generate evenly distribution of reactions
  * across NUM_THREADS
  * returns ReactGridData* which can be used as the global
- * 	threaded_reactions_tasks 
+ *     threaded_reactions_tasks 
  */
 ReactGridData* create_threaded_reactions()
 {
-	int i,k,load,reactions = 0,tasks_per_thread;
-	Grid_node* grid;
-	Reaction* react;
+    int i,k,load,reactions = 0,tasks_per_thread;
+    Grid_node* grid;
+    Reaction* react;
 
-	/*Count the number of reactions*/
-	for(grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
-	{
-		for(react = grid->reactions; react != NULL; react = react -> next)
-		{
-			if(react->subregion)
-				reactions += react->subregion_size;
-			else
-				reactions += grid->size_x * grid->size_y * grid->size_z;
-		}
-	}
-	if(reactions == 0)
-		return NULL;
+    /*Count the number of reactions*/
+    for(grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
+    {
+        for(react = grid->reactions; react != NULL; react = react -> next)
+        {
+            if(react->subregion)
+                reactions += react->subregion_size;
+            else
+                reactions += grid->size_x * grid->size_y * grid->size_z;
+        }
+    }
+    if(reactions == 0)
+        return NULL;
 
-	/*Divide the number of reactions between the threads*/
-	tasks_per_thread = reactions / NUM_THREADS;
-	ReactGridData* tasks = (ReactGridData*)calloc(sizeof(ReactGridData), NUM_THREADS);
-	
-	tasks[0].onset = (ReactSet*)malloc(sizeof(ReactSet));
-	tasks[0].onset->grid = Parallel_grids[0];
-	tasks[0].onset->idx = 0;
+    /*Divide the number of reactions between the threads*/
+    tasks_per_thread = reactions / NUM_THREADS;
+    ReactGridData* tasks = (ReactGridData*)calloc(sizeof(ReactGridData), NUM_THREADS);
+    
+    tasks[0].onset = (ReactSet*)malloc(sizeof(ReactSet));
+    tasks[0].onset->grid = Parallel_grids[0];
+    tasks[0].onset->idx = 0;
 
 
-	for(k = 0, load = 0, grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
-	{
-		for(i = 0; i < grid->size_x * grid->size_y * grid->size_z; i++)
-		{
-			for(react = grid->reactions; react != NULL; react = react -> next)
-			{
-				if(!react->subregion || react->subregion[i])
-					load++;
-				if(load >= tasks_per_thread)
-				{
-					tasks[k].offset = (ReactSet*)malloc(sizeof(ReactSet));
-					tasks[k].offset->grid = grid;
-					tasks[k++].offset->idx = i;	
+    for(k = 0, load = 0, grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
+    {
+        for(i = 0; i < grid->size_x * grid->size_y * grid->size_z; i++)
+        {
+            for(react = grid->reactions; react != NULL; react = react -> next)
+            {
+                if(!react->subregion || react->subregion[i])
+                    load++;
+                if(load >= tasks_per_thread)
+                {
+                    tasks[k].offset = (ReactSet*)malloc(sizeof(ReactSet));
+                    tasks[k].offset->grid = grid;
+                    tasks[k++].offset->idx = i;    
 
-					tasks[k].onset = (ReactSet*)malloc(sizeof(ReactSet));
-					tasks[k].onset->grid = grid;
-					tasks[k].onset->idx = i + 1;
+                    tasks[k].onset = (ReactSet*)malloc(sizeof(ReactSet));
+                    tasks[k].onset->grid = grid;
+                    tasks[k].onset->idx = i + 1;
 
-					load = 0;
-				}
-			}
-		}
-	}
-	return tasks;
+                    load = 0;
+                }
+            }
+        }
+    }
+    return tasks;
 }
 
 /*do_reactions takes ReactGridData which defines the set of reactions to be
@@ -219,60 +219,60 @@ ReactGridData* create_threaded_reactions()
  */
 void* do_reactions(void* dataptr)
 {
-	ReactGridData task = *(ReactGridData*)dataptr;
-	unsigned char started = FALSE, stop = FALSE;
-	int i, j, start_idx, stop_idx;
-	double* states_cache;
-	double dt = *dt_ptr;
-	Grid_node* grid;
-	Reaction* react;
-	for(grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
-	{
-		if(started || grid == task.onset->grid)
-		{
-			if(!started)
-			{
-				started = TRUE;
-				start_idx = task.onset->idx;
-			}
-			else
-			{
-				start_idx = 0;
-			}
-			if(task.offset->grid == grid)
-			{
-				stop_idx = task.offset->idx;
-				stop = TRUE;
-			}
-			else
-			{
-				stop_idx = grid->size_x * grid->size_y * grid->size_z;
-				stop = FALSE;
-			}
-			for(i = start_idx; i<stop_idx; i++)
-			{
-				for(react = grid->reactions; react != NULL; react = react -> next)
-				{
-					if(!react->subregion || react->subregion[i])
-					{
-						states_cache = (double*)malloc(sizeof(double)*react->num_species_involved);
+    ReactGridData task = *(ReactGridData*)dataptr;
+    unsigned char started = FALSE, stop = FALSE;
+    int i, j, start_idx, stop_idx;
+    double* states_cache;
+    double dt = *dt_ptr;
+    Grid_node* grid;
+    Reaction* react;
+    for(grid = Parallel_grids[0]; grid != NULL; grid = grid -> next)
+    {
+        if(started || grid == task.onset->grid)
+        {
+            if(!started)
+            {
+                started = TRUE;
+                start_idx = task.onset->idx;
+            }
+            else
+            {
+                start_idx = 0;
+            }
+            if(task.offset->grid == grid)
+            {
+                stop_idx = task.offset->idx;
+                stop = TRUE;
+            }
+            else
+            {
+                stop_idx = grid->size_x * grid->size_y * grid->size_z;
+                stop = FALSE;
+            }
+            for(i = start_idx; i<stop_idx; i++)
+            {
+                for(react = grid->reactions; react != NULL; react = react -> next)
+                {
+                    if(!react->subregion || react->subregion[i])
+                    {
+                        states_cache = (double*)malloc(sizeof(double)*react->num_species_involved);
 
-						for(j = 0; j < react->num_species_involved; j++)
-						{
-								/*TODO: this assumes grids are the same size/shape *
-		 						 *      add interpolation in case they aren't      */
-							states_cache[j] = react->species_states[j][i];
-						}
-						grid->states[i] += dt*(react->reaction(states_cache));
-						free(states_cache);
-					}
-				}
-			}
-			if(stop)
-				return NULL;
-		}
-	}
-	return NULL;
+                        for(j = 0; j < react->num_species_involved; j++)
+                        {
+                                /*TODO: this assumes grids are the same size/shape *
+                                  *      add interpolation in case they aren't      */
+                            states_cache[j] = react->species_states[j][i];
+                        }
+                        grid->states[i] += dt*(react->reaction(states_cache));
+                        free(states_cache);
+                    }
+                }
+            }
+            if(stop)
+                return NULL;
+        }
+    }
+    return NULL;
 }
 
 /* run_threaded_reactions
@@ -281,10 +281,10 @@ void* do_reactions(void* dataptr)
  */
 static void run_threaded_reactions(ReactGridData* tasks)
 {
-	int k;
-	pthread_t* thread = malloc(sizeof(pthread_t) * NUM_THREADS);
-	assert(thread);
-	 /* launch threads */
+    int k;
+    pthread_t* thread = malloc(sizeof(pthread_t) * NUM_THREADS);
+    assert(thread);
+     /* launch threads */
     for (k = 0; k < NUM_THREADS - 1; k++) {
         pthread_create(&thread[k], NULL, &do_reactions, &tasks[k]);
     }
@@ -295,7 +295,7 @@ static void run_threaded_reactions(ReactGridData* tasks)
     for (k = 0; k < NUM_THREADS - 1; k++) {
         pthread_join(thread[k], NULL);
     }
-	free(thread);
+    free(thread);
 }
 
 static void _fadvance_fixed_step(void) {
@@ -309,36 +309,36 @@ static void _fadvance_fixed_step(void) {
         states = grid->states;
         n = grid->num_currents;
         c = grid->current_list;
-		/*divided the concentration by the volume fraction of the relevant voxel*/ 
-		if(grid->VARIABLE_ECS_VOLUME == VOLUME_FRACTION) {
-        	for (i = 0; i < n; i++) {
-            	states[c[i].destination] += dt * c[i].scale_factor * (*c[i].source)/grid->alpha[c[i].destination];
-        	}
-		}
-		else {
-			for (i = 0; i < n; i++) {
-            	states[c[i].destination] += dt * c[i].scale_factor * (*c[i].source)/grid->alpha[0];
-        	}
-		}
-		memcpy(grid->old_states, states, sizeof(double) * grid->size_x * grid->size_y * grid->size_z);
+        /*divided the concentration by the volume fraction of the relevant voxel*/ 
+        if(grid->VARIABLE_ECS_VOLUME == VOLUME_FRACTION) {
+            for (i = 0; i < n; i++) {
+                states[c[i].destination] += dt * c[i].scale_factor * (*c[i].source)/grid->alpha[c[i].destination];
+            }
+        }
+        else {
+            for (i = 0; i < n; i++) {
+                states[c[i].destination] += dt * c[i].scale_factor * (*c[i].source)/grid->alpha[0];
+            }
+        }
+        memcpy(grid->old_states, states, sizeof(double) * grid->size_x * grid->size_y * grid->size_z);
     }
 
     /* TODO: implicit reactions*/
-	if(threaded_reactions_tasks != NULL)
-	    run_threaded_reactions(threaded_reactions_tasks);
+    if(threaded_reactions_tasks != NULL)
+        run_threaded_reactions(threaded_reactions_tasks);
 
     for (grid = Parallel_grids[0]; grid != NULL; grid = grid -> next) {
-		switch(grid->VARIABLE_ECS_VOLUME)
-		{
-			case VOLUME_FRACTION:
-				dg_adi_vol(*grid);
-				break;
-			case TORTUOSITY:
-				dg_adi_tort(*grid);
-				break;
-			default:
-        		dg_adi(*grid);
-		}
+        switch(grid->VARIABLE_ECS_VOLUME)
+        {
+            case VOLUME_FRACTION:
+                dg_adi_vol(*grid);
+                break;
+            case TORTUOSITY:
+                dg_adi_tort(*grid);
+                break;
+            default:
+                dg_adi(*grid);
+        }
 
     }
     /* transfer concentrations */
@@ -451,10 +451,17 @@ static void _rhs_variable_step(const double t, const double* states, double* ydo
         n = grid->num_currents;
         c = grid->current_list;
         grid_size = grid->size_x * grid->size_y * grid->size_z;
-
-        for (i = 0; i < n; i++) {
-            ydot[c[i].destination] += c[i].scale_factor * (*c[i].source);
+        if(grid->VARIABLE_ECS_VOLUME == VOLUME_FRACTION) {
+            for (i = 0; i < n; i++) {
+                ydot[c[i].destination] +=c[i].scale_factor * (*c[i].source)/grid->alpha[c[i].destination];
+            }
         }
+        else {
+            for (i = 0; i < n; i++) {
+                ydot[c[i].destination] += c[i].scale_factor * (*c[i].source)/grid->alpha[0];
+            }
+        }
+
         ydot += grid_size;
         states += grid_size;        
     }
@@ -466,17 +473,17 @@ static void _rhs_variable_step(const double t, const double* states, double* ydo
 
     /* do the diffusion rates */
     for (grid = Parallel_grids[0]; grid != NULL; grid = grid -> next) {
-		switch(grid->VARIABLE_ECS_VOLUME)
-		{
-			case VOLUME_FRACTION:
-				_rhs_variable_step_helper_vol(grid, states, ydot);
-				break;
-			case TORTUOSITY:
-				_rhs_variable_step_helper_tort(grid, states, ydot);
-				break;
-			default:
-        		_rhs_variable_step_helper(grid, states, ydot);
-		}
+        switch(grid->VARIABLE_ECS_VOLUME)
+        {
+            case VOLUME_FRACTION:
+                _rhs_variable_step_helper_vol(grid, states, ydot);
+                break;
+            case TORTUOSITY:
+                _rhs_variable_step_helper_tort(grid, states, ydot);
+                break;
+            default:
+                _rhs_variable_step_helper(grid, states, ydot);
+        }
 
         ydot += grid_size;
         states += grid_size;        
@@ -801,10 +808,10 @@ static AdiLineData dg_adi_x(Grid_node g, const double dt, const int y, const int
     int yp,ym,zp,zm;
     int x;
     double *RHS = malloc(sizeof(double)*g.size_x);
-	double r = g.dc_x*dt/SQ(g.dx);
-	double div_y = (y==0||y==g.size_y-1)?2.:1.,
-		   div_z = (z==0||z==g.size_z-1)?2.:1.;
-	AdiLineData result;
+    double r = g.dc_x*dt/SQ(g.dx);
+    double div_y = (y==0||y==g.size_y-1)?2.:1.,
+           div_z = (z==0||z==g.size_z-1)?2.:1.;
+    AdiLineData result;
     result.copyFrom = RHS;
     result.copyTo = IDX(0, y, z);
 
@@ -851,7 +858,7 @@ static AdiLineData dg_adi_x(Grid_node g, const double dt, const int y, const int
 static AdiLineData dg_adi_y(Grid_node g, double const dt, int const x, int const z, double const * const state, double* const scratch)
 {
     int y;
-	double r = (g.dc_y*dt/SQ(g.dy)); 
+    double r = (g.dc_y*dt/SQ(g.dy)); 
     double *RHS = malloc(sizeof(double)*g.size_y);
     AdiLineData result;
     result.copyFrom = RHS;
@@ -891,7 +898,7 @@ static AdiLineData dg_adi_z(Grid_node g, double const dt, int const x, int const
 {
     int z;
     double *RHS = malloc(sizeof(double)*g.size_z);
-	double r = g.dc_z*dt/SQ(g.dz);
+    double r = g.dc_z*dt/SQ(g.dz);
     AdiLineData result;
     result.copyFrom = RHS;
     result.copyTo = IDX(x, y, 0);
@@ -962,7 +969,7 @@ void run_threaded_dg_adi(AdiGridData* tasks, pthread_t* thread, const int i, con
         tasks[k].sizej = j;
         tasks[k].dg_adi_dir = dg_adi_dir;
         tasks[k].scratchpad = malloc(sizeof(double) * (n-1));
-		/*with variable volume fraction there are at most n additional points*/
+        /*with variable volume fraction there are at most n additional points*/
      }
     tasks[NUM_THREADS - 1].stop = i * j;
     /* launch threads */
@@ -989,9 +996,9 @@ static int dg_adi(Grid_node g)
     pthread_t* thread = malloc(sizeof(pthread_t) * NUM_THREADS);
     AdiGridData* tasks = malloc(sizeof(AdiGridData) * NUM_THREADS);
 
-	assert(vals);
-	assert(thread);
-	assert(tasks);
+    assert(vals);
+    assert(thread);
+    assert(tasks);
 
     /* first step: advance the x direction */
     run_threaded_dg_adi(tasks, thread, g.size_y, g.size_z, g, state, vals, dg_adi_x, g.size_x);
@@ -1073,18 +1080,18 @@ int rxd_nonvint_block(int method, int size, double* p1, double* p2, int thread_i
             printf("Unknown rxd_nonvint_block call: %d\n", method);
             break;
     }
-	/* printf("method=%d, size=%d, thread_id=%d\n", method, size, thread_id);	 */
+    /* printf("method=%d, size=%d, thread_id=%d\n", method, size, thread_id);     */
     return 0;
 }
 
 void set_setup(const fptr setup_fn) {
-	_setup = setup_fn;
+    _setup = setup_fn;
 }
 
 void set_initialize(const fptr initialize_fn) {
-	_initialize = initialize_fn;
+    _initialize = initialize_fn;
 
-	/*Setup threaded reactions*/
+    /*Setup threaded reactions*/
     refresh_reactions(NUM_THREADS);
 }
 
@@ -1105,24 +1112,24 @@ static void nrn_tree_solve(double* a, double* d, double* b, double* rhs, int* pi
 
     int i;
 
-	/* triang */
-	for (i = n - 1; i > 0; --i) {
-		int pin = pindex[i];
-		if (pin > -1) {
-			double p;
-			p = a[i] / d[i];
-			d[pin] -= p * b[i];
-			rhs[pin] -= p * rhs[i];
-		}
-	}
-	/* bksub */
-	for (i = 0; i < n; ++i) {
-		int pin = pindex[i];
-		if (pin > -1) {
-			rhs[i] -= b[i] * rhs[pin];
-		}
-		rhs[i] /= d[i];
-	}
+    /* triang */
+    for (i = n - 1; i > 0; --i) {
+        int pin = pindex[i];
+        if (pin > -1) {
+            double p;
+            p = a[i] / d[i];
+            d[pin] -= p * b[i];
+            rhs[pin] -= p * rhs[i];
+        }
+    }
+    /* bksub */
+    for (i = 0; i < n; ++i) {
+        int pin = pindex[i];
+        if (pin > -1) {
+            rhs[i] -= b[i] * rhs[pin];
+        }
+        rhs[i] /= d[i];
+    }
 }
 
 // double* states1;
