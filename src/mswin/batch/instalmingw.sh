@@ -74,8 +74,9 @@ mkdir $D/tmp
 cp $B/src/nrniv/mos2nrn.exe $DB/mos2nrn.exe
 cp $B/src/nrniv/neuron.exe $DB/neuron.exe
 cp $B/src/mswin/nrniv.exe $DB/nrniv.exe
-if test -f $B/src/mswin/nrniv_enthought.exe ; then
-  cp $B/src/mswin/nrniv_enthought.exe $DB/nrniv_enthought.exe
+if test -f $B/src/mswin/nrniv_crt90.exe ; then
+  # overwrite (avoids R6034 error from python2.7 on certain imports)
+  cp $B/src/mswin/nrniv_crt90.exe $DB/nrniv.exe
   cp /e/Python27/Microsoft.VC90.CRT.manifest $DB
   cp /e/Python27/msvcr90.dll $DB
 fi
@@ -99,10 +100,11 @@ if test "$LTCC" = "" ; then
 fi
 
 # extract enough mingw stuff so mknrndll will work.
-#This adds 13MB to the installer.
-#get rid of this in favor of newer gcc
-unzip -d $D -o $S/../mingw${BIT}_nrndist.zip
-cp $S/../pthreadGC2-w64.dll $DB
+#This adds 22MB to the installer.
+sh $S/mingw_files/nrnmingwenv.sh $D
+#mingw64_nrndist created using nrn/mingw_files/nrnmingwenv.sh
+#unzip -d $D -o $S/../mingw${BIT}_nrndist.zip
+#cp $S/../pthreadGC2-w64.dll $DB
 
 if false ; then
 # copy some useful tools
@@ -146,7 +148,14 @@ if test "$PARANEURON"="yes" ; then
 	#cp /c/Windows/System32/mpich2mpi.dll $DB
 	#cp $S/../mpich2mpi.dll $DB
 	if test $host_cpu = x86_64 ; then
-		cp $mpiinstalled/lib/x64/msmpi.dll $DB
+		if test -f $mpiinstalled/lib/x64/msmpi.dll ; then
+			cp $mpiinstalled/lib/x64/msmpi.dll $DB
+		else
+			zz=`cygcheck $DB/libnrnmpi.dll | grep msmpi.dll`
+			if test "$zz" != "" ; then
+				cp $zz $DB
+			fi
+		fi
 	else
 		cp $mpiinstalled/lib/x86/msmpi.dll $DB
 	fi
@@ -180,7 +189,7 @@ unzip -d $D -o $Z
 rm $Z
 cd $B/share
 rm -f $Z
-zip -l $Z lib/nrn.defaults
+zip -l $Z lib/nrn.defaults lib/nrnunits.lib
 unzip -d $D -o $Z 
 rm $Z
 for f in $DB/hocmodule*.dll ; do

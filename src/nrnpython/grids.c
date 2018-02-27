@@ -7,8 +7,8 @@ a linked list of Grid_nodes
 #include <stdio.h>
 #include <assert.h>
 #include "grids.h"
-#include "nrnpython.h"
-#ifdef __APPLE__
+#include <nrnpython.h>
+#if defined(__APPLE__)
 #include <Python/Python.h>
 #else
 #include <Python.h>

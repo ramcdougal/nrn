@@ -8,7 +8,7 @@ that version is compatible with this version.
 For now try to use something of the form d.d
 If this is changed then also change nrnoc/init.c
 */
-char* nmodl_version_ = "6.2.0";
+char* nmodl_version_ = "7.5.0";
 
 /* Point processes are now interfaced to nrnoc via objectvars.
 Thus, p-array variables and functions accessible to hoc do not have
@@ -172,7 +172,8 @@ static List* ba_list_;
 
 #if CVODE
 List* state_discon_list_;
-static int cvode_emit, cvode_not_allowed, cvode_ieq_index;
+int cvode_not_allowed;
+static int cvode_emit, cvode_ieq_index;
 static int cond_index;
 static int tqitem_index;
 static int watch_index;

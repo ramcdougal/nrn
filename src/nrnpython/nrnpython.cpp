@@ -63,11 +63,11 @@ int nrnpy_pyrun(const char* fname) {
 #ifdef MINGW
 #if PY_MAJOR_VERSION >= 3
   // perhaps this should be the generic implementation
-  char* cmd = new char[strlen(fname) + 30];
-  sprintf(cmd, "exec(open(%s).read, globals())", fname);
+  char* cmd = new char[strlen(fname) + 40];
+  sprintf(cmd, "exec(open(\"%s\").read(), globals())", fname);
   int err = PyRun_SimpleString(cmd);
   delete [] cmd;
-  if (PyRun_SimpleString(cmd) != 0) {
+  if (err != 0) {
     PyErr_Print();
     PyErr_Clear();
     return 0;
@@ -256,14 +256,22 @@ static char* nrnpython_getline(char* prompt) {
   if (r == 1) {
     size_t n = strlen(hoc_cbufstr->buf) + 1;
     hoc_ctp = hoc_cbufstr->buf + n - 1;
+#if (PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 4)
+    char* p = (char*)PyMem_RawMalloc(n);
+#else
     char* p = (char*)PyMem_MALLOC(n);
+#endif
     if (p == 0) {
       return 0;
     }
     strcpy(p, hoc_cbufstr->buf);
     return p;
   } else if (r == EOF) {
+#if (PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 4)
+    char* p = (char*)PyMem_RawMalloc(2);
+#else
     char* p = (char*)PyMem_MALLOC(2);
+#endif
     if (p == 0) {
       return 0;
     }
