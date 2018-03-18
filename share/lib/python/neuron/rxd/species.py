@@ -17,32 +17,32 @@ set_nonvint_block = neuron.nrn_dll_sym('set_nonvint_block')
 
 fptr_prototype = ctypes.CFUNCTYPE(None)
 
-set_setup = dll.set_setup
+set_setup = neuron.nrn_dll_sym('set_setup')
 set_setup.argtypes = [fptr_prototype]
-set_initialize = dll.set_initialize
+set_initialize = neuron.nrn_dll_sym('set_initialize')
 set_initialize.argtypes = [fptr_prototype]
 
 #setup_solver = nrn.setup_solver
 #setup_solver.argtypes = [ctypes.py_object, ctypes.py_object, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double]
 
-insert = dll.insert
+insert = neuron.nrn_dll_sym('insert')
 insert.argtypes = [ctypes.c_int, ctypes.py_object, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.py_object, ctypes.py_object]
 
 insert.restype = ctypes.c_int
 
-make_time_ptr = dll.make_time_ptr
+make_time_ptr = neuron.nrn_dll_sym('make_time_ptr')
 make_time_ptr.argtypes = [ctypes.py_object, ctypes.py_object]
 
 #states = None
-_set_num_threads = dll.set_num_threads 
+_set_num_threads = neuron.nrn_dll_sym('set_num_threads')
 _set_num_threads.argtypes = [ctypes.c_int]
-_get_num_threads = dll.get_num_threads
+_get_num_threads = neuron.nrn_dll_sym('get_num_threads')
 _get_num_threads.restype = ctypes.c_int
 
-_set_grid_concentrations = dll.set_grid_concentrations
+_set_grid_concentrations = neuron.nrn_dll_sym('set_grid_concentrations')
 _set_grid_concentrations.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.py_object, ctypes.py_object]
 
-_set_grid_currents = dll.set_grid_currents
+_set_grid_currents = neuron.nrn_dll_sym('set_grid_currents')
 _set_grid_currents.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.py_object, ctypes.py_object, ctypes.py_object]
 
 
@@ -84,16 +84,15 @@ def _extracellular_do_initialize():
         # TODO: allow
 
 
-_extracellular_set_setup = dll.set_setup
+_extracellular_set_setup = neuron.nrn_dll_sym('set_setup')
 _extracellular_set_setup.argtypes = [fptr_prototype]
-_extracellular_set_initialize = dll.set_initialize
+_extracellular_set_initialize = neuron.nrn_dll_sym('set_initialize')
 _extracellular_set_initialize.argtypes = [fptr_prototype]
 
 def _ensure_extracellular():
     global _extracellular_exists, do_setup_fptr, do_initialize_fptr
     if not _extracellular_exists:
-        from neuron import nrn_dll
-        set_nonvint_block(nrn_dll().rxd_nonvint_block)
+        set_nonvint_block(neuron.nrn_dll_sym('rxd_nonvint_block'))
         do_setup_fptr = fptr_prototype(_extracellular_do_setup)
         do_initialize_fptr = fptr_prototype(_extracellular_do_initialize)
         _extracellular_set_setup(do_setup_fptr)
@@ -317,10 +316,10 @@ def _xyz(seg):
     # TODO: this is very inefficient, especially since we're calling this for each segment not for each section; fix
     sec = seg.sec
     n3d = int(h.n3d(sec=sec))
-    x3d = [h.x3d(i, sec=sec) for i in xrange(n3d)]
-    y3d = [h.y3d(i, sec=sec) for i in xrange(n3d)]
-    z3d = [h.z3d(i, sec=sec) for i in xrange(n3d)]
-    arc3d = [h.arc3d(i, sec=sec) for i in xrange(n3d)]
+    x3d = [h.x3d(i, sec=sec) for i in range(n3d)]
+    y3d = [h.y3d(i, sec=sec) for i in range(n3d)]
+    z3d = [h.z3d(i, sec=sec) for i in range(n3d)]
+    arc3d = [h.arc3d(i, sec=sec) for i in range(n3d)]
     return numpy.interp([seg.x * sec.L], arc3d, x3d)[0], numpy.interp([seg.x * sec.L], arc3d, y3d)[0], numpy.interp([seg.x * sec.L], arc3d, z3d)[0]
 
 
@@ -469,7 +468,7 @@ class _ExtracellularSpecies(rxdmath._Arithmeticed):
         grid_indices = []
         neuron_pointers = []
         stateo = '_ref_' + self._species + 'o'
-        for sec, indices in self._seg_indices.iteritems():
+        for sec, indices in self._seg_indices.items(): #iteritems():
             for seg, i in zip(sec, indices):
                 if i is not None:
                     grid_indices.append(i)
@@ -481,7 +480,7 @@ class _ExtracellularSpecies(rxdmath._Arithmeticed):
         ispecies = '_ref_i' + self._species
         neuron_pointers = []
         scale_factors = []
-        for sec, indices in self._seg_indices.iteritems():
+        for sec, indices in self._seg_indices.items(): #iteritems():
             for seg, surface_area, i in zip(sec, _surface_areas1d(sec), indices):
                 if i is not None:
                     neuron_pointers.append(seg.__getattribute__(ispecies))

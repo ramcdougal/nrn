@@ -4,6 +4,7 @@
 #include "grids.h"
 #include "rxd.h"
 #include <pthread.h>
+#include "nrnpython_config.h" /* force recompile if building with multiple python versions */
 #if 0 && defined(__APPLE__)
 #include <Python/Python.h>
 #else
