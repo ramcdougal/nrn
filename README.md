@@ -18,7 +18,7 @@ Basic installation on Linux from the nrn...tar.gz file is:
 ```
 
 If sources are obtained from the git repository,
-http://github.org/nrnhines/nrn ,
+http://github.org/neuronsimulator/nrn ,
 create the automake, autoconf, libtool generated files by:
   sh build.sh
 
