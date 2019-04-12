@@ -103,22 +103,31 @@ cdef class Plane:
 
 
 cdef class Sphere:
-    cdef double x, y, z, r, _xlo, _xhi, _ylo, _yhi, _zlo, _zhi
+    cdef double _x, _y, _z, _r
+    cdef _xlo, _xhi, _ylo, _yhi, _zlo, _zhi
     cdef list clips
     property primitives:
         def __get__(self): return [self]
 
     def __init__(self, double x, double y, double z, double r):
-        self.x, self.y, self.z, self.r = x, y, z, r
+        self._x, self._y, self._z, self._r = x, y, z, r
         self._xlo, self._xhi = x - r, x + r
         self._ylo, self._yhi = y - r, y + r
         self._zlo, self._zhi = z - r, z + r
         self.clips = []
     def __repr__(self):
         if self.clips:
-            return 'Sphere(%g, %g, %g, %g; clips=%r)' % (self.x, self.y, self.z, self.r, self.clips)
+            return 'Sphere(%g, %g, %g, %g; clips=%r)' % (self._x, self._y, self._z, self._r, self.clips)
         else:
-            return 'Sphere(%g, %g, %g, %g)' % (self.x, self.y, self.z, self.r)
+            return 'Sphere(%g, %g, %g, %g)' % (self._x, self._y, self._z, self._r)
+    property x:
+        def __get__(self): return self._x
+    property y:
+        def __get__(self): return self._y
+    property z:
+        def __get__(self): return self._z
+    property r:
+        def __get__(self): return self._r
     property xlo:
         def __get__(self): return self._xlo
     property xhi:
@@ -132,7 +141,7 @@ cdef class Sphere:
     property zhi:
         def __get__(self): return self._zhi
     cpdef double distance(self, double x, double y, double z):
-        d = sqrt((x - self.x) ** 2 + (y - self.y) ** 2 + (z - self.z) ** 2) - self.r
+        d = sqrt((x - self._x) ** 2 + (y - self._y) ** 2 + (z - self._z) ** 2) - self._r
         old_d = d
         for clip in self.clips:
             d = max(d, clip.distance(x, y, z))
@@ -140,7 +149,7 @@ cdef class Sphere:
     def starting_points(self, xs, ys, zs):
         #for theta in numpy.arange(0, 2 * numpy.pi, 10):
         # TODO: this only works right if the entire object is inside the domain
-        return sum([c.starting_points(xs, ys, zs) for c in self.clips], [(bisect.bisect_left(xs, self.x - self.r), bisect.bisect_left(ys, self.y), bisect.bisect_left(zs, self.z))])
+        return sum([c.starting_points(xs, ys, zs) for c in self.clips], [(bisect.bisect_left(xs, self._x - self._r), bisect.bisect_left(ys, self._y), bisect.bisect_left(zs, self._z))])
     cpdef bint overlaps_x(self, double lo, double hi):
         return lo <= self._xhi and hi >= self._xlo
     cpdef bint overlaps_y(self, double lo, double hi):
